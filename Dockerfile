@@ -39,13 +39,32 @@ RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/wh
 COPY src/ src/
 
 # Trained model artifacts (models/*.joblib), and the MLflow/audit SQLite
-# files, are deliberately NOT copied into the image: they are this
-# project's data, produced by running the training scripts
+# files, are deliberately NOT copied into the image from the host: they
+# are this project's data, produced by running the training scripts
 # (src/serving/train_serving_models.py, src/credit_risk/train_scorecard.py,
 # and the rest) on the host, not part of the image's own code.
 # docker-compose.yml bind-mounts them in at container start instead, so
 # retraining a model on the host and restarting the container picks up the
 # new artifact without ever rebuilding the image.
+#
+# The line below bakes a SYNTHETIC-data demo model into the image itself,
+# for a different case docker-compose.yml does not cover: running this
+# image standalone, with no host to bind-mount models/ from at all (for
+# example a cloud platform that only runs the container, such as the
+# render.yaml deploy target documented in docs/deployment.md). This does
+# NOT change local docker-compose behavior: docker-compose.yml's own
+# bind mount (./models:/app/models:ro) still overrides whatever is baked
+# in here the moment the container starts, exactly as before this line
+# was added. --skip-registry means this build step never touches MLflow,
+# since a Docker build has no reason to register a model version. A
+# container running on this baked-in default is serving a model trained
+# on this project's own synthetic data generators (see
+# src/data/generate_synthetic_ieee.py and generate_synthetic_credit.py),
+# not the real-Kaggle-data model this project's model cards report
+# numbers for; docs/deployment.md states this plainly for anyone using a
+# deployment built from this image.
+RUN python -m src.serving.train_serving_models --skip-registry
+
 EXPOSE 8000 8501
 
 # The default command runs the FastAPI service; docker-compose.yml

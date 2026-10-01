@@ -1,0 +1,33 @@
+# render.yaml, Render Blueprint: deploys the FraudLens scoring API as a
+# single free web service, built from this project's own Dockerfile.
+#
+# Only the API is deployed here, not the Streamlit dashboard. The
+# dashboard reads the same mlflow.db/audit_log.db files the API writes to,
+# which works locally because docker-compose.yml bind-mounts one shared
+# host folder into both containers. Render gives each service its own,
+# separate, non-shareable filesystem (confirmed directly from Render's own
+# disk documentation: a persistent disk is accessible by only a single
+# service, and disks are not available on the free plan at all), so a
+# dashboard deployed as a second free service here would only ever show
+# its own empty, disconnected data, never the real API's activity. See
+# docs/deployment.md for the full reasoning and what this means in
+# practice.
+#
+# dockerCommand overrides the Dockerfile's own CMD (which defaults to port
+# 8000) so the service binds to the $PORT value Render injects at runtime,
+# which is not guaranteed to be 8000. The "sh -c" wrapper is required for
+# $PORT to actually expand; Render's own dockerCommand is not run through
+# a shell by default.
+
+services:
+  - type: web
+    name: fraudlens-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./
+    dockerCommand: sh -c "uvicorn src.api.main:app --host 0.0.0.0 --port $PORT"
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
