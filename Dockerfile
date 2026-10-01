@@ -70,4 +70,19 @@ EXPOSE 8000 8501
 # The default command runs the FastAPI service; docker-compose.yml
 # overrides this command for the dashboard container, so both containers
 # come from this exact same image.
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+#
+# Shell form (not exec-form ["uvicorn", ...]) is deliberate: Docker always
+# runs a shell-form CMD through /bin/sh -c itself, so ${PORT:-8000} is
+# guaranteed to expand correctly regardless of how the container is
+# started. This matters because Render (see render.yaml) injects a $PORT
+# environment variable at runtime that the service must bind to, and it is
+# not guaranteed to be 8000; locally, docker-compose.yml does not set
+# $PORT, so the :-8000 fallback keeps the existing local behavior (host
+# port 8000) unchanged. An earlier version of render.yaml tried to handle
+# this with its own "dockerCommand: sh -c \"...\"" override instead, but
+# Render's own parsing of that field mangled the quoting (the deploy
+# failed with "sh: 1: uvicorn ... : not found", which is dash's error
+# format for its ENTIRE command line being treated as one unresolvable
+# token) — so the fix is to let the image's own CMD do this instead of
+# relying on a string Render re-parses.
+CMD uvicorn src.api.main:app --host 0.0.0.0 --port ${PORT:-8000}

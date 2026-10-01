@@ -13,11 +13,18 @@
 # docs/deployment.md for the full reasoning and what this means in
 # practice.
 #
-# dockerCommand overrides the Dockerfile's own CMD (which defaults to port
-# 8000) so the service binds to the $PORT value Render injects at runtime,
-# which is not guaranteed to be 8000. The "sh -c" wrapper is required for
-# $PORT to actually expand; Render's own dockerCommand is not run through
-# a shell by default.
+# No dockerCommand override here: the Dockerfile's own CMD already binds
+# to ${PORT:-8000} using shell form, which Docker always runs through
+# /bin/sh -c itself, so Render's injected $PORT env var expands reliably
+# at container start. An earlier version of this file set
+# `dockerCommand: sh -c "uvicorn ... --port $PORT"` to achieve the same
+# thing, but Render's own parsing of that quoted string mangled it: the
+# deploy failed with "sh: 1: uvicorn src.api.main:app --host 0.0.0.0
+# --port 10000: not found" (dash's error format for its entire command
+# line being treated as a single, unresolvable token — i.e. the quotes
+# did not survive Render's handling of the field as expected). Letting
+# the Dockerfile's own CMD do the $PORT expansion sidesteps that parsing
+# path entirely.
 
 services:
   - type: web
@@ -25,7 +32,6 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: ./
-    dockerCommand: sh -c "uvicorn src.api.main:app --host 0.0.0.0 --port $PORT"
     plan: free
     healthCheckPath: /health
     envVars:
