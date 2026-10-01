@@ -1,0 +1,26 @@
+﻿# .dockerignore, FraudLens Week 12. Keeps the Docker build context to just
+# what the image actually needs (requirements.txt, src/), the same
+# "only what is actually used" discipline requirements.txt itself follows.
+#
+# Trained model artifacts, the MLflow/audit SQLite files, and raw/
+# generated data are excluded on purpose, not by oversight: they are this
+# project's DATA, bind-mounted in at container start by docker-compose.yml
+# rather than baked into the image. See Dockerfile's own comment on this.
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.git/
+.gitignore
+data/
+mlruns/
+models/
+mlflow.db
+audit_log.db
+tests/
+*.md
+.venv/
+venv/
+docker-compose.yml
+Dockerfile
+.dockerignore

@@ -1,0 +1,42 @@
+﻿# requirements.txt, FraudLens Week 1 through Week 5. Only what the code in
+# this project actually imports, added as each week is built and each
+# import is traced for real. Later weeks (scorecardpy, modAL, PySpark,
+# FastAPI, Streamlit, ...) will add their own dependencies here as those
+# weeks are built, the same discipline SearchLens's requirements-*.txt
+# split followed after that project's own requirements.txt drift bug.
+#
+# torch is pinned to its CPU-only build via the extra index below, not
+# plain PyPI. Plain `pip install torch` resolves a build bundling full
+# NVIDIA CUDA libraries (confirmed directly: a plain install pulled in
+# over 6 GB of nvidia-* packages), which is pure dead weight on a machine
+# with no GPU, exactly the kind of thing that filled your C: drive back in
+# Week 1. The +cpu version suffix forces pip to resolve specifically the
+# CPU-only build, which has no CUDA dependencies at all.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+pandas==2.3.3
+numpy==2.2.6
+pytest==9.1.1
+scikit-learn==1.7.2
+mlflow==3.16.1
+xgboost==3.2.0
+lightgbm==4.7.0
+imbalanced-learn==0.14.2
+torch==2.14.0+cpu
+torch_geometric==2.8.0.post1
+
+# Added for the FastAPI/Streamlit serving module (Week 11): joblib saves
+# and loads the trained fraud/credit serving artifacts (src.serving.
+# train_serving_models); fastapi and uvicorn[standard] run the scoring API
+# (src.api.main), the [standard] extra pulling in watchfiles so
+# `uvicorn --reload` works; streamlit runs the model comparison/audit log
+# dashboard (src.dashboard.app); httpx is not imported directly anywhere in
+# this project's own code, but fastapi.testclient.TestClient (used by
+# tests/test_api.py) hard-requires it to be installed and raises an opaque
+# error without it, so it is pinned explicitly here rather than left as an
+# untracked transitive dependency.
+joblib==1.5.3
+fastapi==0.141.1
+uvicorn[standard]==0.46.0
+streamlit==1.64.0
+httpx==0.28.1

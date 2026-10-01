@@ -1,0 +1,75 @@
+﻿# docker-compose.yml, FraudLens Week 12: runs the FastAPI scoring service
+# and the Streamlit monitoring dashboard as two containers built from the
+# one image Dockerfile defines (see that file's own comment for why one
+# image, not two).
+#
+# Both services bind-mount models/, mlflow.db and audit_log.db from the
+# host at the exact same relative paths (models/, mlflow.db, audit_log.db)
+# that src/api/main.py's and src/dashboard/app.py's own
+# FRAUDLENS_MODELS_DIR / FRAUDLENS_AUDIT_DB / FRAUDLENS_MLFLOW_URI env-var
+# defaults already assume, relative to each script's own working
+# directory. The environment variables below are set explicitly anyway so
+# the mapping is visible here rather than only inside main.py/app.py.
+#
+# These three paths are this project's DATA, produced by running the
+# training scripts on the host (train_scorecard.py, advanced_models.py,
+# train_serving_models.py, and the rest), not part of the image. That is
+# deliberate: retraining a model on the host and restarting a container
+# (docker compose restart api) picks up the new artifact immediately, with
+# no image rebuild.
+#
+# Before the first `docker compose up`, models/, mlflow.db and
+# audit_log.db must already exist (this project's normal workflow already
+# requires running the training scripts before the API or dashboard have
+# anything to serve, so on this project they already do by this point).
+# If mlflow.db or audit_log.db do not exist yet on a fresh checkout,
+# create them as empty files first with `touch mlflow.db audit_log.db`:
+# a well-documented Docker bind-mount behavior (not tested directly in
+# this project, since this sandbox could not pull a base image to run
+# Docker at all here; see the delivery message alongside this file) is
+# that mounting a host path that does not exist yet makes Docker create a
+# DIRECTORY of that name instead of a file, which then breaks sqlite3's
+# own attempt to open it as a database file. Worth confirming for real on
+# your machine if you ever hit a fresh checkout with no data files yet.
+
+services:
+  api:
+    build: .
+    image: fraudlens:latest
+    container_name: fraudlens_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models:ro
+      - ./mlflow.db:/app/mlflow.db
+      - ./audit_log.db:/app/audit_log.db
+    environment:
+      FRAUDLENS_MODELS_DIR: /app/models
+      FRAUDLENS_AUDIT_DB: /app/audit_log.db
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    image: fraudlens:latest
+    container_name: fraudlens_dashboard
+    command: ["streamlit", "run", "src/dashboard/app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./models:/app/models:ro
+      - ./mlflow.db:/app/mlflow.db
+      - ./audit_log.db:/app/audit_log.db
+    environment:
+      FRAUDLENS_MLFLOW_URI: sqlite:////app/mlflow.db
+      FRAUDLENS_AUDIT_DB: /app/audit_log.db
+    restart: unless-stopped
+    # Deliberately no depends_on against api: the dashboard reads directly
+    # from mlflow.db/audit_log.db (see src/dashboard/app.py's own
+    # docstring) and is built to work whether or not the API container is
+    # up, so no startup ordering is required between the two.
